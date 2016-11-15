@@ -1,0 +1,50 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+ 
+
+```{r setup}
+setwd("/Users/me/Archives/AR/Redesign663")
+library(tidyverse)
+library(lubridate)
+USPRIV <- as_tibble(read_csv("USPRIV.csv"))
+CIVPART <- as_tibble(read_csv("CIVPART.csv"))
+PRIME_AGE <- as_tibble(read_csv("LNU01300060.csv"))
+names(PRIME_AGE)[2] = "PRIME_AGE"
+
+my_df = bind_cols(list(USPRIV, CIVPART[2], PRIME_AGE[2]))
+
+my_df = mutate(my_df, 
+       ratio = PRIME_AGE / CIVPART)
+
+my_df = mutate(my_df,
+               Bush = as.integer(DATE < '2009-02-01' & DATE >= '2001-02-01'))
+my_df = mutate(my_df,
+               Obama = as.integer(DATE >= '2009-02-01'))
+```
+
+
+```{r the_plot}
+my_df = mutate(my_df, 
+       adjusted = USPRIV * ratio)
+my_df = filter(my_df, DATE >= '2001-02-01')
+my_df = mutate(my_df, 
+       relative = ifelse(DATE < '2009-02-01', adjusted/140213.9, adjusted/139561.8))
+
+my_df = mutate(my_df, 
+       difference = ifelse(DATE < '2009-02-01', interval(DATE,'2001-02-01'), interval(DATE,'2009-02-01')))
+
+my_df = mutate(my_df, 
+       difference = -1*round(difference/2500000))
+
+my_df = mutate(my_df, 
+       the_pres = ifelse(Obama==1, 'Obama', 'Bush'))
+
+gg <- ggplot(my_df, aes(x=difference, y=relative, group = the_pres, colour = the_pres)) + 
+  geom_line() +
+   xlab("") + ylab("Daily Views")
+gg
+
+```
+
