@@ -2,49 +2,148 @@
 title: "R Notebook"
 output: html_notebook
 ---
- 
+
+
+
+
+
+https://fred.stlouisfed.org/series/EMRATIO
+
+LNU00000012
+LNU00000036
+LNU00000060
+LNU00024230
+
+LNU02000012
+LNU02000036
+LNU02000060
+LNU02024230
+
 
 ```{r setup}
 setwd("/Users/me/Archives/AR/Redesign663")
 library(tidyverse)
 library(lubridate)
 USPRIV <- as_tibble(read_csv("USPRIV.csv"))
-CIVPART <- as_tibble(read_csv("CIVPART.csv"))
-PRIME_AGE <- as_tibble(read_csv("LNU01300060.csv"))
-names(PRIME_AGE)[2] = "PRIME_AGE"
+EM_RATIO <- as_tibble(read_csv("EMRATIO.csv"))
 
-my_df = bind_cols(list(USPRIV, CIVPART[2], PRIME_AGE[2]))
+pop.teen <- as_tibble(read_csv("LNU00000012.csv"))
+names(pop.teen)[2] = "pop.teen"
+pop.20 <- as_tibble(read_csv("LNU00000036.csv"))
+names(pop.20)[2] = "pop.20"
+pop.prime <- as_tibble(read_csv("LNU00000060.csv"))
+names(pop.prime)[2] = "pop.prime"
+pop.55 <- as_tibble(read_csv("LNU00024230.csv"))
+names(pop.55)[2] = "pop.55"
+
+emp.teen <- as_tibble(read_csv("LNU02000012.csv"))
+names(emp.teen)[2] = "emp.teen"
+emp.20 <- as_tibble(read_csv("LNU02000036.csv"))
+names(emp.20)[2] = "emp.20"
+emp.prime <- as_tibble(read_csv("LNU02000060.csv"))
+names(emp.prime)[2] = "emp.prime"
+emp.55 <- as_tibble(read_csv("LNU02024230.csv"))
+names(emp.55)[2] = "emp.55"
+
+my_df = bind_cols(list(USPRIV,
+                       EM_RATIO[2], 
+                       pop.teen[2],
+                       pop.20[2],
+                       pop.prime[2],
+                       pop.55[2],
+                       emp.teen[2],
+                       emp.20[2],
+                       emp.prime[2],
+                       emp.55[2]
+                       ))
+
+
+
+my_df = mutate(my_df,
+               Bush = as.integer(DATE < '2009-01-01' & DATE >= '2001-01-01'))
+my_df = mutate(my_df,
+               Obama = as.integer(DATE >= '2009-01-01'))
 
 my_df = mutate(my_df, 
-       ratio = PRIME_AGE / CIVPART)
+       ratio.teen = emp.teen/pop.teen,
+       ratio.20 = emp.20/pop.20,
+       ratio.prime = emp.prime/pop.prime,
+       ratio.55 = emp.55/pop.55)
 
-my_df = mutate(my_df,
-               Bush = as.integer(DATE < '2009-02-01' & DATE >= '2001-02-01'))
-my_df = mutate(my_df,
-               Obama = as.integer(DATE >= '2009-02-01'))
+print(slice(my_df, 1)[c('pop.teen','pop.20','pop.prime','pop.55')])
+
+my_df = mutate(my_df, 
+       adjusted_em = (ratio.teen * 16002 + ratio.20 * 18005 + ratio.prime * 120252 + ratio.55 * 57151)/(16002+18005+120252+57151)) 
+
+
 ```
 
 
 ```{r the_plot}
 my_df = mutate(my_df, 
-       adjusted = USPRIV * ratio)
-my_df = filter(my_df, DATE >= '2001-02-01')
+       the_weight = 100 * adjusted_em / EMRATIO)
 my_df = mutate(my_df, 
-       relative = ifelse(DATE < '2009-02-01', adjusted/140213.9, adjusted/139561.8))
+       improved = the_weight*USPRIV)
+
+my_df = filter(my_df, DATE >= '2001-01-01')
+
 
 my_df = mutate(my_df, 
-       difference = ifelse(DATE < '2009-02-01', interval(DATE,'2001-02-01'), interval(DATE,'2009-02-01')))
+       relative = ifelse(DATE < '2009-01-01', improved/110644.6, improved/112371.8))
 
 my_df = mutate(my_df, 
-       difference = -1*round(difference/2500000))
+       difference = ifelse(DATE < '2009-01-01', as.numeric(difftime(DATE,'2001-01-01',units="weeks")), as.numeric(difftime(DATE,'2009-01-01',units="weeks"))))
+
+
 
 my_df = mutate(my_df, 
        the_pres = ifelse(Obama==1, 'Obama', 'Bush'))
 
+hw <- theme_gray()+ theme(
+  strip.text.y = element_blank(),
+  strip.background=element_rect(fill=rgb(.9,.95,1),
+    colour=gray(.5), size=.2),
+
+  panel.border=element_rect(fill=FALSE,colour=gray(.70)),
+  panel.grid.major = element_line(colour = "grey40"),
+  panel.grid.minor.x = element_blank(),
+  panel.grid.minor.y = element_blank(),
+  panel.margin.x = unit(0.10,"cm"),
+  panel.margin.y = unit(0.05,"cm"),
+
+  axis.ticks=element_blank(),
+  axis.text=element_text(colour="black"),
+  axis.text.y=element_text(margin=margin(0,3,0,3)),
+  axis.text.x=element_text(margin=margin(-1,0,3,0)),
+  
+  text = element_text(size=20)
+)
+
 gg <- ggplot(my_df, aes(x=difference, y=relative, group = the_pres, colour = the_pres)) + 
-  geom_line() +
-   xlab("") + ylab("Daily Views")
+  geom_line(size=1.5) +
+   xlab("\nWeeks since start of presidency") + 
+  ylab("Relative change (cumulative)\n") +
+  ggtitle("Age-Adjusted Change in Private Sector Employment\n") +
+  scale_color_discrete(name="President") +
+  hw
 gg
+
+```
+```{r showing_more}
+gg2 <- ggplot(my_df, aes(DATE)) +
+  geom_line(aes(y=ratio.prime), colour="red") +
+  geom_line(aes(y=EMRATIO/100), colour="blue") +
+  xlab("Year") + 
+  ylab("Labor Force Participation") +
+  ggtitle("Comparing Prime-Age Employment ratio to Total Employment Ratio") +
+  theme(text = element_text(size=20))
+   
+gg2
+```
+
+```{r}
+ggsave("Main_plot.pdf", plot = gg, width = 10, height = 5)
+ggsave("Ratio_plot.pdf", plot = gg2, width = 10, height = 5)
 
 ```
 
